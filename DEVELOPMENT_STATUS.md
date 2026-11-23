@@ -1,58 +1,45 @@
-# Fallout New Vegas Android — development status
+# Development status
 
-**Snapshot date:** 2026-11-23. The source and APK are local to the developer. This document distinguishes user-observed behavior from unverified patches.
+**Snapshot:** 23 November 2026. This is an experimental native Android build. Results below are user-observed local tests, not claims of general compatibility.
 
-| Area | Status | Evidence / next action |
-|---|---|---|
-| Native ARM64 gameplay | **Runs on Honor** | Actual New Vegas gameplay has been reached |
-| Android launcher | **Working local build** | Package `com.mojave.nativeedition` |
-| Game-data OBB | **Previously verified** | ~9.2 GB local OBB with automatic extraction; do not upload |
-| Graphics Stage 74 | **Previously fixed** | Preserve depth rounding/quantization change |
-| Custom Mojave HUD | **User likes current layout** | Independent styling and custom tools; preserve |
-| Menu cursor dragging | **Working in latest reports** | Direct menu tapping is optional and not verified |
-| USE / Activate | **User confirmed working** | No speculative USE rewrite required |
-| `~` console and keyboard | **Previously working** | Keep accessible during play |
-| HIDE / SHOW | **Partially verified** | Invisible control hitboxes can still trigger actions; investigate unwanted menu touches |
-| NPC dialogue | **Not fully verified** | Test Goodbye, scroll and exit from multiple NPCs |
-| MAP in TOOLS | **Needs verification** | F3 should open Pip-Boy DATA; user selects World Map |
-| Stage 27 graphics crash | **Intermittent, unresolved** | Need GL vs EGL error diagnostics |
-| Null-function-pointer crash | **Intermittent, unresolved** | Need `FNVCall` caller/native trace |
-| Outdoor gameplay FPS | **Needs optimization** | Latest: ~7–10 FPS at 1920×1080, High textures; prior ~15 FPS |
-| FPS improvement | **No confirmed gain yet** | Profile actual CPU/GPU costs and retest |
-| Menu / in-game music | **Missing in latest test; unresolved** | Verify `Data/Music/Special/MainTitle.mp3` exists in the app’s private game directory, inspect `FNVMedia` file/decoder logs, then investigate Android MediaPlayer bridge |
-| Full source upload | **Deferred by developer** | Only workflow docs committed now |
+| Component | Status / evidence |
+| --- | --- |
+| Native gameplay | Reached playable gameplay on an ARM64 Android device |
+| Package | `com.mojave.nativeedition` |
+| Game content | Installed privately on the device; base BSA/ESM archives present |
+| Custom Mojave HUD | Working local controls, menu dragging, USE, keyboard and console previously reported |
+| Dialogue / HUD hide | Some edge cases not fully verified; preserve known-good controls |
+| Graphics / guest runtime | Intermittent stage-related graphics and null-call crashes have been reported; not declared fixed |
+| Exterior FPS | About **7–9 FPS** with building-heavy views |
+| Cluttered interior FPS | About **11 FPS** |
+| Simpler interior FPS | About **30 FPS** |
+| Native profiling | Main-thread and driver CPU costs prominent; complex scenes reached approximately 600–700 draw calls/frame |
+| Native optimization attempts | Several renderer/dispatch experiments; no reproducible FPS improvement confirmed |
+| World texture set 1 | 3,064 DDS; selected source files reduced from 596.68 MiB to 67.76 MiB on PC |
+| World texture set 2 | 6,661 DDS; selected source files reduced from 264.98 MiB to 250.19 MiB on PC |
+| Texture deployment | 9,725 loose DDS files transferred to the device, ~334 MiB on disk; **no visible texture change or FPS improvement**, override usage unverified |
+| Exterior occlusion mod | Merged ESM imported; mod order showed enabled; **FPS unchanged** in user test; in-game/deployed plugin usage not fully verified |
+| Hidden-geometry mod | Local install ZIP assembled with matching ESM+BSA; successful device activation/test not yet reported |
+| Clutter-removal mod | Local install ZIP assembled with ESP; successful device activation/test not yet reported |
+| Lighting/shadows | No verified native lighting/shadow optimization |
+| Mesh/prop culling | No verified native geometry simplification or new renderer culling implementation |
+| GitHub state | Documentation and workflow helpers only. Modified native source/APK not present |
 
-## Rules for the next development session
+## Technical findings
 
-1. **Do not overwrite the working local baseline** until another build is verified on the actual device.
-2. Fix reproducible crashes and input regressions with precise logs, not speculative patches.
-3. Leave the custom HUD, 9.2 GB OBB, working menu mouse, console and USE intact.
-4. Fix incomplete conversation flow only after verifying the game receives expected inputs.
-5. Profile CPU guest execution, native GL calls, framebuffer blits, texture/shader work and synchronization for FPS.
-6. Record before/after outdoor FPS with identical graphics settings and location.
-7. Upload only permitted redistributable source and scripts later; do not commit proprietary Fallout assets.
+- Previous frame timing observed roughly 95 ms mean frame time in a short device profile and approximately 603 draw calls/frame; the test windows and settings were not a controlled benchmark.
+- A later main-thread CPU sample profile showed a substantial fraction of time in recompiled guest code and Mali driver routines. This makes reducing CPU-side scene work and draw submissions more promising than only reducing texture disk size.
+- Installing loose files in `files/game/Data/textures` proves transfer, **not** override use. The lack of visual difference requires a deliberate asset-loading test before attributing FPS results to texture quality.
+- Mod order showing a `+` entry proves the launcher marked a pack enabled, **not** conclusively that its occlusion data affected the rendered scene.
+- No source update in this repository currently changes the runtime, HUD, lighting or actual APK.
 
-The user's current goal is a stable full native Android game with customized controls, not a demo. Performance targets such as 20–30 FPS are aspirations, not verified results.
+## Safe future priorities
 
-## 2026-11-23: first measured native FPS profile
+1. Retain the known-good APK, source copy, saves, and app-private assets.
+2. Verify active mod deployment and loose asset-loading behavior using controlled, reversible checks.
+3. Fix reproducible crashes and regressions before broad modifications.
+4. Profile draw submissions, visibility decisions, per-object work, and graphics-driver CPU overhead in a repeatable scene.
+5. Evaluate culling/lighting/mesh optimizations individually; benchmark rather than assume gains.
+6. Add redistributable build sources and a genuinely reproducible Android CI build only after legal and functional review.
 
-The developer ran the instrumented APK on the Honor and uploaded the `FNVPerf` log. Eleven 60-frame windows reported **10.61–17.05 FPS** (mean ~12.9), **58.64–94.28 ms total frame time** (mean ~79.2 ms), **2.72–4.23 ms presentation CPU time** (mean ~3.44 ms), **0.98–1.35 ms EGL swap** (mean ~1.13 ms), **~0.10–0.13 ms final blit**, **~0.04–0.14 ms draw error checks**, and roughly **146–552 draw calls per frame**. The specifically instrumented readback and query-poll paths were near zero in these windows.
-
-**Interpretation:** final framebuffer blit, swap and per-draw GL error checks are not enough to explain the slow frames. Approximately **~76 ms per frame on average occurred outside measured presentation**, but that remainder includes guest game execution, graphics command setup, potential driver work, and other uninstrumented operations; it is **not automatically CPU gameplay time**. The higher-draw windows generally had lower FPS, but scenes were not controlled, so draw-call correlation is not proof of causality.
-
-**Next diagnostic:** apply `Profile-NewVegas-DrawCalls-v2.ps1` locally (not yet committed as source). It adds `FNVPerf2` counters for CPU time in draw dispatch, program/shader setup, texture/sampler binding, uniforms, rendering state, vertex attributes and GL draw submission. Rebuild and test the same outdoor scene. Preserve the existing working APK, HUD, joystick, USE, OBB and Stage 27 diagnostics. Do **not** remove correctness checks or modify shader semantics speculatively.
-
-## 2026-11-23: FPS v2 device profile
-
-The Honor test produced 12 real gameplay samples in `FNV-Raw-FPS.txt` between 07:46:15 and 07:47:18 (local time):
-
-- Mean frame time: **95.00 ms** (~**10.55 FPS** as the mean of reported FPS samples).
-- Mean **outsideDraw**: **69.91 ms/frame** (~74% of frame time). This includes game execution and any native operations not timed by the draw-call profiler; it does **not** prove the x86 game itself consumes all that time.
-- Mean **drawAll**: **22.08 ms/frame** (~23%); preparation **8.24 ms**, vertex attributes **1.88 ms**, draw issue **10.97 ms**.
-- Mean final presentation: **3.01 ms/frame** (~3%).
-- Mean visible draw calls: **603.4/frame** (range 511.8–698.8).
-- `glGetError`, `glReadPixels`, and measured query waits contributed negligible time in these samples.
-
-**Conclusion:** The highest-priority work is measuring and eliminating unnecessary time outside actual draws, including possible D3D shim overhead, EGL context transfers between guest imports, and native/recompiled game execution. Do not claim one of these is the proven root cause yet.
-
-**Unverified experiment only:** `Try-NewVegas-FastContext-v1.ps1` can retain EGL ownership across non-graphics guest imports until another thread requests it. This is **not** a verified fix and is **not committed** to GitHub; it must be compiled and A/B benchmarked on device with a rollback source/APK.
+**Rule:** no new FPS or feature claim without a reproducible on-device test.
