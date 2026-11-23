@@ -19,6 +19,7 @@
 | Null-function-pointer crash | **Intermittent, unresolved** | Need `FNVCall` caller/native trace |
 | Outdoor gameplay FPS | **Needs optimization** | Latest: ~7–10 FPS at 1920×1080, High textures; prior ~15 FPS |
 | FPS improvement | **No confirmed gain yet** | Profile actual CPU/GPU costs and retest |
+| Menu / in-game music | **Missing in latest test; unresolved** | Verify `Data/Music/Special/MainTitle.mp3` exists in the app’s private game directory, inspect `FNVMedia` file/decoder logs, then investigate Android MediaPlayer bridge |
 | Full source upload | **Deferred by developer** | Only workflow docs committed now |
 
 ## Rules for the next development session
