@@ -41,3 +41,18 @@ The developer ran the instrumented APK on the Honor and uploaded the `FNVPerf` l
 **Interpretation:** final framebuffer blit, swap and per-draw GL error checks are not enough to explain the slow frames. Approximately **~76 ms per frame on average occurred outside measured presentation**, but that remainder includes guest game execution, graphics command setup, potential driver work, and other uninstrumented operations; it is **not automatically CPU gameplay time**. The higher-draw windows generally had lower FPS, but scenes were not controlled, so draw-call correlation is not proof of causality.
 
 **Next diagnostic:** apply `Profile-NewVegas-DrawCalls-v2.ps1` locally (not yet committed as source). It adds `FNVPerf2` counters for CPU time in draw dispatch, program/shader setup, texture/sampler binding, uniforms, rendering state, vertex attributes and GL draw submission. Rebuild and test the same outdoor scene. Preserve the existing working APK, HUD, joystick, USE, OBB and Stage 27 diagnostics. Do **not** remove correctness checks or modify shader semantics speculatively.
+
+## 2026-11-23: FPS v2 device profile
+
+The Honor test produced 12 real gameplay samples in `FNV-Raw-FPS.txt` between 07:46:15 and 07:47:18 (local time):
+
+- Mean frame time: **95.00 ms** (~**10.55 FPS** as the mean of reported FPS samples).
+- Mean **outsideDraw**: **69.91 ms/frame** (~74% of frame time). This includes game execution and any native operations not timed by the draw-call profiler; it does **not** prove the x86 game itself consumes all that time.
+- Mean **drawAll**: **22.08 ms/frame** (~23%); preparation **8.24 ms**, vertex attributes **1.88 ms**, draw issue **10.97 ms**.
+- Mean final presentation: **3.01 ms/frame** (~3%).
+- Mean visible draw calls: **603.4/frame** (range 511.8–698.8).
+- `glGetError`, `glReadPixels`, and measured query waits contributed negligible time in these samples.
+
+**Conclusion:** The highest-priority work is measuring and eliminating unnecessary time outside actual draws, including possible D3D shim overhead, EGL context transfers between guest imports, and native/recompiled game execution. Do not claim one of these is the proven root cause yet.
+
+**Unverified experiment only:** `Try-NewVegas-FastContext-v1.ps1` can retain EGL ownership across non-graphics guest imports until another thread requests it. This is **not** a verified fix and is **not committed** to GitHub; it must be compiled and A/B benchmarked on device with a rollback source/APK.
