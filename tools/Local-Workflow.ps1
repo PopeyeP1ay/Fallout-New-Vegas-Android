@@ -73,7 +73,7 @@ if ($Install -or $Inspect -or $Mods -or $CaptureLog) {
     if (-not (Test-Path -LiteralPath $AdbExecutable -PathType Leaf)) {
         throw "ADB executable not found."
     }
-    ADB @("get-state")
+    ADB -Arguments @("get-state")
 }
 
 if ($Install) {
@@ -82,24 +82,24 @@ if ($Install) {
         throw "Expected APK missing: $apkPath"
     }
     Write-Host "Installing update without clearing application data..."
-    ADB @("install", "-r", $apkPath)
+    ADB -Arguments @("install", "-r", $apkPath)
     Write-Host "Install complete. Verify that the correct app opens and your saves work."
 }
 
 if ($Inspect) {
     Write-Host "Checking package and game-data directories..."
-    ADB @("shell", "pm", "path", $Package)
-    ADB @("shell", "run-as", $Package, "ls", "-ld", "files/game", "files/game/Data")
+    ADB -Arguments @("shell", "pm", "path", $Package)
+    ADB -Arguments @("shell", "run-as", $Package, "ls", "-ld", "files/game", "files/game/Data")
     Write-Host "A release build may deny run-as; that is not proof of missing game files."
 }
 
 if ($Mods) {
     Write-Host "Launcher mod order (+ is enabled):"
-    ADB @("shell", "run-as", $Package, "cat", "files/game/AndroidMods/order.txt")
+    ADB -Arguments @("shell", "run-as", $Package, "cat", "files/game/AndroidMods/order.txt")
     Write-Host "Mod files in store:"
-    ADB @("shell", "run-as", $Package, "find", "files/game/AndroidMods", "-type", "f")
+    ADB -Arguments @("shell", "run-as", $Package, "find", "files/game/AndroidMods", "-type", "f")
     Write-Host "Deployed game Data listing:"
-    ADB @("shell", "run-as", $Package, "ls", "-la", "files/game/Data")
+    ADB -Arguments @("shell", "run-as", $Package, "ls", "-la", "files/game/Data")
 }
 
 if ($CaptureLog) {
