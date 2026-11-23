@@ -1,79 +1,98 @@
-# Working development workflow — 2026-11-23
+# Complete development workflow
 
-This is a **local development record**, not a complete buildable repository. The modified native source and tested APK remain on the developer's Windows PC.
+**Status:** workflow for the customized local Android ARM64 build. The full modified source, required build tools and tested APK remain local; they are not currently in this repository. Commands shown here are reusable templates, not a claim that CI can compile the game.
 
-## Local paths
+## 1. Preserve the working version
 
-| Purpose | Location |
-|---|---|
-| Modified independent source | `E:\FNVOwn` |
-| Build scripts | `E:\New folder (2)\FalloutNewVegasAndroid\Build\Scripts` |
-| Built test APK | `E:\FNVOwnOutput\NewVegasNative-Test.apk` |
-| Game-data OBB (local only) | `E:\FNVOwnOutput\main.162.com.mojave.nativeedition.obb` |
-| ADB | `E:\AndroidADB\platform-tools\adb.exe` |
-| Android package ID | `com.mojave.nativeedition` |
-| Honor test device | ADB serial `A9VUCP5715409006` |
+- Keep a separate copy of the currently playable APK and its matching signing material.
+- Back up modified source and your working launcher, touch HUD, graphics renderer and startup bridge.
+- Preserve the tested control layout and menu cursor behavior, console/keyboard access, and working USE input.
+- Back up user saves before experimenting with mods or content import.
+- Never use `pm clear`, uninstall the game, or delete the original game archives as a routine update step.
 
-## Preserve the working baseline
+## 2. Configure local tools without hard-coded paths
 
-1. Copy the current APK to a timestamped local backup.
-2. Save a backup/snapshot of the modified source, especially `InputOverlay.java`, `ProbeActivity.java`, `android/startup.c`, `recomp/host/android_graphics.c` and `recomp/host/sm2msl.c`.
-3. Preserve the tested Stage 74 depth fix, custom Mojave HUD, menu mouse dragging, keyboard, `~` console, and working USE key.
-4. Do **not** uninstall the app, wipe app data, or retransmit the ~9.2 GB OBB unnecessarily.
-5. Modify only one cause at a time, retain an easy rollback APK, and measure the new build on the phone.
-
-### Build
+In Windows PowerShell 5.1, set these **for your current shell** to locations on your own computer:
 
 ```powershell
-$folder = "E:\New folder (2)\FalloutNewVegasAndroid\Build\Scripts"
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$folder\Build-NewVegas-CustomLauncher.ps1"
-if ($LASTEXITCODE -ne 0) { throw "Build failed; do not install." }
+$env:FNV_BUILD_SCRIPT = (Resolve-Path "./local-build/Build-NewVegas-CustomLauncher.ps1").Path
+$env:FNV_APK          = (Resolve-Path "./local-output/Working-NewVegas.apk").Path
+$env:FNV_ADB          = (Get-Command adb.exe).Source
+$env:FNV_SERIAL       = "<ADB-device-serial>"
+$env:FNV_PACKAGE      = "com.mojave.nativeedition"
 ```
 
-### Install over the existing application
+The relative paths above are *examples*. Use the actual script and APK locations; `Resolve-Path` requires the file to exist. Retrieve the device serial with `adb devices`. Avoid publishing your serial, local paths, secrets or crash logs.
+
+The wrapper `tools/Local-Workflow.ps1` does not replace the actual local native build script and does not reconstruct missing source. It invokes the already-working local build procedure.
+
+## 3. Build and install
+
+From the repository directory, use the helper when local prerequisites are configured:
 
 ```powershell
-$adb = "E:\AndroidADB\platform-tools\adb.exe"
-$serial = "A9VUCP5715409006"
-& $adb -s $serial install -r "E:\FNVOwnOutput\NewVegasNative-Test.apk"
-if ($LASTEXITCODE -ne 0) { throw "Installation failed." }
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "./tools/Local-Workflow.ps1" -Build
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "./tools/Local-Workflow.ps1" -Install
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "./tools/Local-Workflow.ps1" -Inspect
 ```
 
-The package ID and signing key must match the installed APK to preserve its app data.
+- The helper backs up the APK at the configured output path **before** invoking the build script if it already exists.
+- A successful local build must produce the expected APK; the helper refuses to install a missing file.
+- Installation uses `adb install -r`, not uninstall/reinstall. The package identity and signing certificate must match the existing installation to preserve app data.
+- A successful build or installation **does not** prove gameplay works; device testing is required.
 
-### Capture a live crash
+Do not replace the known-good APK until you have a backup and a recovery path.
 
-Start logging **before** launching the game. Leave PowerShell open while playing; after the crash, press Ctrl+C and upload the saved log.
+## 4. Import game content once
+
+The Android launcher imports a locally supplied game-data archive into app-private storage. The installed layout includes `files/game/FalloutNV.exe`, `files/game/Fallout_default.ini`, and required `files/game/Data/` assets.
+
+After successful import and extraction, subsequent APK updates normally launch using those same installed game files. **Do not reimport the OBB/ZIP solely to activate a mod or change an APK.** Reimport only if the launcher reports missing/corrupt base files or if you intentionally update the asset dataset.
+
+Game files belong to the user and are **never** included in this repository.
+
+## 5. Install and test mods
+
+See [MODS.md](MODS.md). Create a ZIP with compatible `Data/*.esm`, `Data/*.esp`, and associated supported assets, and import it using **Game Content → Mods → Import ZIP**. Enable the mod, select **Done**, then **Play**. Verify the deployment and enablement from the device before interpreting FPS.
+
+Do not install alternative merged/modular variants of the same plugin together. Test one mod at a time and compare the same saved scene.
+
+## 6. Verify the installed app without destructive commands
 
 ```powershell
-$adb = "E:\AndroidADB\platform-tools\adb.exe"
-$serial = "A9VUCP5715409006"
-& $adb -s $serial logcat -c
-& $adb -s $serial logcat -b main,system,crash -v threadtime |
-    Out-File "E:\FNVOwnOutput\FNV-Full-Crash.txt" -Encoding utf8
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "./tools/Local-Workflow.ps1" -Inspect
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "./tools/Local-Workflow.ps1" -Mods
 ```
 
-Use unfiltered logs first; `FNVCall`, `FNVGraphics`, `FNVProbe`, `libc`, `DEBUG` and `AndroidRuntime` may all matter. A null-function-pointer message alone is not the caller/backtrace. Stage 27 needs both GL and EGL error codes to distinguish failures.
+The device can be accessible with `run-as` in a debuggable build. Release builds may not permit it. Use launcher or application logs if `run-as` is unavailable.
 
-## Device regression checklist
+## 7. Capture failures and profile performance
 
-- [ ] Main menu loads; mouse cursor can drag and select Continue.
-- [ ] Load a save, move, aim, fire, jump, and USE/Activate.
-- [ ] Pip-Boy opens and closes; MAP from TOOLS reaches DATA/map navigation.
-- [ ] NPC conversation can scroll and exit via Goodbye normally.
-- [ ] `~` console and `KB` are accessible during play.
-- [ ] HIDE makes HUD art invisible without unintended menu presses; SHOW restores controls.
-- [ ] Save and reload works.
-- [ ] At least 10 minutes of gameplay without Stage 27 or null-function-pointer crashes.
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "./tools/Local-Workflow.ps1" -CaptureLog
+```
 
-## FPS measurement plan
+Run logging before launching the game. Press Ctrl+C to stop collection. The output contains device information and is for **private debugging**, not committing.
 
-Reported performance: about **7–10 FPS at 1920×1080 / High textures**; earlier scenes/builds sometimes ~15 FPS. These are not controlled comparisons.
+For FPS tests, keep the same save, location, camera angle, resolution, texture setting, and mod loadout. Log mean FPS, frame time, draw calls, game-thread CPU samples, driver CPU time, and any shader or texture-related synchronization. Test one change at a time.
 
-For a credible comparison, benchmark the same outdoor saved location, camera angle, texture level and resolution. Compare 1920×1080/High with the lowest available resolution/Low, then profile the ARM64 game thread, Direct3D translation, OpenGL ES framebuffer copies and `eglSwapBuffers` latency. Instrument actual milliseconds; don't assume that lowering resolution will solve CPU/render-command overhead.
+**Known observations:** roughly 7–9 FPS outdoors in building-heavy areas, ~11 FPS in a cluttered interior, and ~30 FPS in a simpler interior. Earlier native traces showed heavy game-thread execution and driver overhead. Loose texture transfer and exterior occlusion have **not** produced observed FPS gains.
 
-**Do not claim an FPS increase until it is reproduced on the Honor during gameplay.**
+## 8. Regression checklist
 
-## Later GitHub source upload
+- [ ] Launcher opens and the correct game assets are recognized.
+- [ ] Existing save loads without another content import.
+- [ ] Menu cursor can drag and activate buttons.
+- [ ] Move, aim, fire, jump and USE work.
+- [ ] Pip-Boy, MAP navigation, keyboard and console are usable.
+- [ ] Conversation scrolling, selection and Goodbye work.
+- [ ] HUD show/hide does not leave unwanted active hitboxes.
+- [ ] Audio/music, world rendering, and save/reload work.
+- [ ] At least 10 minutes of play without graphics or guest-execution crashes.
+- [ ] Baseline and candidate FPS measured with controlled settings.
 
-This repository currently holds documentation only. Before uploading modified source, review the upstream license and required notices. Keep the original game assets and executables, the OBB, full APK, signing keys, crash logs, personal data and large build outputs out of GitHub.
+## 9. GitHub workflow and release boundary
+
+`.github/workflows/verify-repository.yml` runs repository hygiene checks on commits and pull requests. It rejects tracked game assets, binaries, signing materials and machine-specific absolute paths in documentation/scripts. This is **not** a complete native APK CI pipeline: the private, locally modified code and build dependencies have not yet been published.
+
+Before any future source upload, confirm redistribution rights, preserve all required licenses and notices, review for private paths/keys, and ensure builds are reproducible without uploading proprietary game files. Never publish OBBs or executable-derived private payloads.
