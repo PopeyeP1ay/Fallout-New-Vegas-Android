@@ -1,0 +1,22 @@
+name: Verify repository
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  repository-hygiene:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out documentation and permitted source
+        uses: actions/checkout@v4
+      - name: Check tracked files and machine-specific paths
+        run: python3 tools/verify_repository.py
+      - name: Explain scope
+        run: |
+          echo "Repository hygiene checks completed."
+          echo "Native source and APK are not present; no APK was built or tested."
