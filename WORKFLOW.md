@@ -15,14 +15,14 @@
 In Windows PowerShell 5.1, set these **for your current shell** to locations on your own computer:
 
 ```powershell
-$env:FNV_BUILD_SCRIPT = (Resolve-Path "./local-build/Build-NewVegas-CustomLauncher.ps1").Path
-$env:FNV_APK          = (Resolve-Path "./local-output/Working-NewVegas.apk").Path
-$env:FNV_ADB          = (Get-Command adb.exe).Source
-$env:FNV_SERIAL       = "<ADB-device-serial>"
+$env:FNV_BUILD_SCRIPT = Read-Host "Path to the existing build script"
+$env:FNV_APK          = Read-Host "Path where the APK is or will be built"
+$env:FNV_ADB          = Read-Host "Path to adb.exe"
+$env:FNV_SERIAL       = Read-Host "Device serial from adb devices"
 $env:FNV_PACKAGE      = "com.mojave.nativeedition"
 ```
 
-The relative paths above are *examples*. Use the actual script and APK locations; `Resolve-Path` requires the file to exist. Retrieve the device serial with `adb devices`. Avoid publishing your serial, local paths, secrets or crash logs.
+Supply your actual local paths privately when prompted. The output APK does not have to exist before a build, but the build script must be present. Avoid publishing your serial, local paths, secrets or crash logs.
 
 The wrapper `tools/Local-Workflow.ps1` does not replace the actual local native build script and does not reconstruct missing source. It invokes the already-working local build procedure.
 
